@@ -2,6 +2,12 @@
 
 All notable changes to **JomaKhoroch (জমাখরচ)** are documented in this file.
 
+## [1.5.3] - Persistent Release Signing & Google Sign-In Configuration
+
+### Improved
+- **Persistent Release Keystore:** Configured permanent release signing keystore in CI/CD with registered SHA-1 & SHA-256 fingerprints in Firebase for seamless Google Sign-In and in-app updates.
+- **Updated Firebase Config:** Bundled updated `google-services.json` with verified Android OAuth client bindings.
+
 ## [1.5.2] - Startup Crash Fix & Offline Resilience
 
 ### Fixed
