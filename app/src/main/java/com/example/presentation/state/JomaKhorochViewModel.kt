@@ -261,6 +261,7 @@ class JomaKhorochViewModel(
 
     private fun startProfileObserver() {
         profileObserverJob?.cancel()
+        if (!cloudSyncRepo.isCloudAvailable) return
         profileObserverJob = viewModelScope.launch {
             try {
                 cloudSyncRepo.observeUserProfile(currentUserId).collect { profile ->
@@ -301,6 +302,12 @@ class JomaKhorochViewModel(
 
     private fun runInitialCloudSync() {
         if (signingOut) return
+        if (!cloudSyncRepo.isCloudAvailable) {
+            cloudSyncState.update {
+                it.copy(syncStatus = SyncStatus.IDLE, syncError = null)
+            }
+            return
+        }
         if (!networkMonitor.isOnline.value) {
             hasPendingLocalChanges = true
             cloudSyncState.update {
@@ -357,6 +364,12 @@ class JomaKhorochViewModel(
         successMsg: String? = null
     ) {
         if (signingOut) return
+        if (!cloudSyncRepo.isCloudAvailable) {
+            cloudSyncState.update {
+                it.copy(syncStatus = SyncStatus.IDLE, syncError = null)
+            }
+            return
+        }
         if (activeSyncJob?.isActive == true) return
         activeSyncJob = viewModelScope.launch {
             cloudSyncState.update { it.copy(syncStatus = SyncStatus.SYNCING, syncError = null) }

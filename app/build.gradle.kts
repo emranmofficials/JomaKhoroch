@@ -16,8 +16,8 @@ android {
     applicationId = "com.aistudio.jomakhoroch.bdxkvq"
     minSdk = 24
     targetSdk = 36
-    versionCode = 12
-    versionName = "1.5.1"
+    versionCode = 13
+    versionName = "1.5.2"
 
     val githubReleaseRepo = (System.getenv("GITHUB_RELEASE_REPO") ?: System.getenv("GITHUB_REPOSITORY") ?: "")
       .trim()

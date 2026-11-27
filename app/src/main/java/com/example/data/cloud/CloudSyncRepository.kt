@@ -5,6 +5,7 @@ import androidx.room.withTransaction
 import com.example.R
 import com.example.data.local.JomaKhorochDatabase
 import com.google.firebase.Firebase
+import com.google.firebase.FirebaseApp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.auth
 import com.google.firebase.firestore.DocumentSnapshot
@@ -37,18 +38,51 @@ data class CloudSyncOutcome(
  * persistent disk caching enabled so writes queue locally while offline and flush automatically
  * when connectivity returns.
  */
-class CloudSyncRepository(
-    private val db: FirebaseFirestore,
+class CloudSyncRepository private constructor(
     private val localDb: JomaKhorochDatabase,
-    private val auth: FirebaseAuth = Firebase.auth
+    private val dbProvider: () -> FirebaseFirestore?,
+    private val authProvider: () -> FirebaseAuth?
 ) {
-    constructor(context: Context, localDb: JomaKhorochDatabase) : this(
-        db = createConfiguredFirestore(context),
-        localDb = localDb
+    constructor(
+        db: FirebaseFirestore,
+        localDb: JomaKhorochDatabase,
+        auth: FirebaseAuth = Firebase.auth
+    ) : this(
+        localDb = localDb,
+        dbProvider = { db },
+        authProvider = { auth }
     )
 
+    constructor(context: Context, localDb: JomaKhorochDatabase) : this(
+        localDb = localDb,
+        dbProvider = {
+            if (FirebaseApp.getApps(context.applicationContext).isNotEmpty()) {
+                createConfiguredFirestore(context)
+            } else {
+                null
+            }
+        },
+        authProvider = {
+            if (FirebaseApp.getApps(context.applicationContext).isNotEmpty()) {
+                Firebase.auth
+            } else {
+                null
+            }
+        }
+    )
+
+    private val db: FirebaseFirestore? by lazy { dbProvider() }
+    private val auth: FirebaseAuth? by lazy { authProvider() }
+
+    val isCloudAvailable: Boolean
+        get() = db != null && auth != null
+
+    private fun requireFirestore(): FirebaseFirestore {
+        return db ?: throw IllegalStateException("Cloud sync is unavailable without Firebase configuration.")
+    }
+
     private fun requireUserId(): String {
-        val uid = auth.currentUser?.uid
+        val uid = auth?.currentUser?.uid
         if (uid.isNullOrBlank()) {
             throw IllegalStateException("User must be signed in with Google before accessing Firestore.")
         }
@@ -60,11 +94,12 @@ class CloudSyncRepository(
      * Triggers pull-merge whenever another device increments `syncRevision`.
      */
     fun observeUserProfile(userId: String): Flow<CloudUserProfile?> = flow {
+        val firestore = db ?: return@flow
         val uid = requireUserId()
         check(uid == userId) { "Signed-in user changed; refusing cross-user listener." }
         val docPath = "users/$uid"
         emitAll(
-            db.collection("users").document(uid)
+            firestore.collection("users").document(uid)
                 .snapshots()
                 .map { snapshot ->
                     if (snapshot.exists()) {
@@ -82,7 +117,7 @@ class CloudSyncRepository(
                         .firstOrNull()
                     if (firestoreError == null && error is CancellationException) throw error
                     val exceptionToLog = firestoreError ?: (error as? Exception)
-                    if (exceptionToLog != null && auth.currentUser?.uid == uid) {
+                    if (exceptionToLog != null && auth?.currentUser?.uid == uid) {
                         handleFirestoreError(exceptionToLog, OperationType.GET, docPath)
                     }
                     throw error
@@ -99,12 +134,14 @@ class CloudSyncRepository(
         deviceId: String,
         forcePull: Boolean = false
     ): Result<Boolean> = withContext(Dispatchers.IO) {
+        val firestore = db ?: return@withContext Result.success(false)
+        if (auth == null) return@withContext Result.success(false)
         var activePath = "users/$userId"
         try {
             val uid = requireUserId()
             check(uid == userId) { "Signed-in user changed; refusing cross-user read." }
 
-            val userRef = db.collection("users").document(uid)
+            val userRef = firestore.collection("users").document(uid)
             val profileSnap = userRef.get().await()
             if (!profileSnap.exists()) {
                 return@withContext Result.success(false)
@@ -204,6 +241,24 @@ class CloudSyncRepository(
         email: String?,
         deviceId: String
     ): Result<CloudSyncOutcome> = withContext(Dispatchers.IO) {
+        val firestore = db ?: return@withContext Result.success(
+            CloudSyncOutcome(
+                revision = 0L,
+                pulledFromCloud = false,
+                totalSyncedRecords = 0,
+                syncedAtMillis = System.currentTimeMillis()
+            )
+        )
+        if (auth == null) {
+            return@withContext Result.success(
+                CloudSyncOutcome(
+                    revision = 0L,
+                    pulledFromCloud = false,
+                    totalSyncedRecords = 0,
+                    syncedAtMillis = System.currentTimeMillis()
+                )
+            )
+        }
         var activePath = "users/$userId"
         var activeOp = OperationType.WRITE
         try {
@@ -211,7 +266,7 @@ class CloudSyncRepository(
             check(uid == userId) { "Signed-in user changed; refusing cross-user write." }
 
             val nowMs = System.currentTimeMillis()
-            val userRef = db.collection("users").document(uid)
+            val userRef = firestore.collection("users").document(uid)
 
             val notebooks = localDb.notebookDao().getAllNotebooksOnce()
             val categories = localDb.categoryDao().getAllCategoriesOnce()
@@ -357,8 +412,9 @@ class CloudSyncRepository(
             operations.add(staleId to { batch -> batch.delete(docRef) })
         }
 
+        val firestore = requireFirestore()
         operations.chunked(400).forEach { chunk ->
-            val batch = db.batch()
+            val batch = firestore.batch()
             for ((_, applyOp) in chunk) {
                 applyOp(batch)
             }
@@ -501,7 +557,8 @@ class CloudSyncRepository(
      * Removes all collections scoped to this user under /users/{userId}.
      */
     suspend fun deleteAllUserData(userId: String) = withContext(Dispatchers.IO) {
-        val userDoc = db.collection("users").document(userId)
+        val firestore = db ?: return@withContext
+        val userDoc = firestore.collection("users").document(userId)
         val collections = listOf(
             "notebooks", "categories", "shops", "loans",
             "transactions", "budgets", "notes", "tasks"

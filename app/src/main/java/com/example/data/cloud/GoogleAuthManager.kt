@@ -159,7 +159,7 @@ fun performGoogleSignOut(
             } catch (e: Exception) {
                 Log.w("Auth", "Failed to clear credential state: ${e.message}")
             } finally {
-                Firebase.auth.signOut()
+                runCatching { Firebase.auth.signOut() }
                 onSignOutComplete()
             }
         }
@@ -182,7 +182,7 @@ fun performAccountDeletion(
         withContext(NonCancellable) {
             try {
                 onBeforeDelete()
-                val user = Firebase.auth.currentUser
+                val user = runCatching { Firebase.auth.currentUser }.getOrNull()
                 if (user != null) {
                     user.delete().await()
                 }

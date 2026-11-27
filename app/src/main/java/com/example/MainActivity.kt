@@ -239,7 +239,7 @@ fun JomaKhorochRoot(
     val stage = when {
         !splashCompletedSaved || !isBootstrapReady -> RootStage.SPLASH
         !prefs.onboardingCompleted -> RootStage.ONBOARDING
-        effectiveAuthUser == null -> RootStage.AUTH
+        effectiveAuthUser == null && isFirebaseInitialized -> RootStage.AUTH
         else -> RootStage.SESSION
     }
 
@@ -287,11 +287,16 @@ fun JomaKhorochRoot(
                     )
                     RootStage.SESSION -> {
                         val user = effectiveAuthUser
-                        if (user != null) {
-                            key(user.uid) {
+                        val sessionUserId = user?.uid ?: "local_offline_user"
+                        val sessionDisplayName = user?.displayName.orEmpty()
+                        val sessionEmail = user?.email
+                        if (user != null || !isFirebaseInitialized) {
+                            key(sessionUserId) {
                                 AuthenticatedJomaKhorochSession(
                                     container = container,
-                                    user = user,
+                                    userId = sessionUserId,
+                                    userDisplayName = sessionDisplayName,
+                                    userEmail = sessionEmail,
                                     openUpdateRequested = openUpdateRequested,
                                     onConsumeOpenUpdateRequest = onConsumeOpenUpdateRequest
                                 )
@@ -307,7 +312,9 @@ fun JomaKhorochRoot(
 @Composable
 private fun AuthenticatedJomaKhorochSession(
     container: AppContainer,
-    user: FirebaseUser,
+    userId: String,
+    userDisplayName: String,
+    userEmail: String?,
     openUpdateRequested: Boolean,
     onConsumeOpenUpdateRequest: () -> Unit
 ) {
@@ -315,12 +322,12 @@ private fun AuthenticatedJomaKhorochSession(
     val credentialManager = remember(context) { CredentialManager.create(context) }
     val sessionScope = rememberCoroutineScope()
     val viewModel: JomaKhorochViewModel = viewModel(
-        key = user.uid,
+        key = userId,
         factory = JomaKhorochViewModel.factory(
             container = container,
-            currentUserId = user.uid,
-            userDisplayName = user.displayName.orEmpty(),
-            userEmail = user.email
+            currentUserId = userId,
+            userDisplayName = userDisplayName,
+            userEmail = userEmail
         )
     )
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()

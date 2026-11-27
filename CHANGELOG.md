@@ -2,6 +2,12 @@
 
 All notable changes to **JomaKhoroch (জমাখরচ)** are documented in this file.
 
+## [1.5.2] - Startup Crash Fix & Offline Resilience
+
+### Fixed
+- **Startup Crash Without `google-services.json`:** Made `CloudSyncRepository` lazily resolve `FirebaseFirestore` and `FirebaseAuth` only when `FirebaseApp` is initialized, preventing `IllegalStateException: Default FirebaseApp is not initialized` crashes on app launch.
+- **Seamless Offline Fallback:** Added safe guards in `JomaKhorochViewModel`, `GoogleAuthManager`, `FirestoreErrorHandler`, and `MainActivity` so the app runs cleanly in offline mode when Firebase configuration is absent.
+
 ## [1.5.1] - Dashboard UI Polish & Privacy Architecture
 
 ### Improved
