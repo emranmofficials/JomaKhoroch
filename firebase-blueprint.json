@@ -1,0 +1,243 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Private authenticated user profile and cross-device sync cursor.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Owner Firebase Auth UID." },
+        "displayName": { "type": "string", "description": "User display name (1..80 chars)." },
+        "email": { "type": "string", "description": "Optional user email (<= 200 chars), strictly private to owner." },
+        "deviceId": { "type": "string", "description": "Last syncing device identifier (1..128 chars)." },
+        "syncRevision": { "type": "integer", "description": "Monotonic sync revision counter (>= 0)." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Server timestamp written via FieldValue.serverTimestamp()." },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Server timestamp written via FieldValue.serverTimestamp()." }
+      },
+      "required": ["userId", "displayName", "deviceId", "syncRevision", "createdAt", "updatedAt"]
+    },
+    "CloudNotebook": {
+      "title": "CloudNotebook",
+      "description": "User account book synced across devices.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "localId": { "type": "integer" },
+        "name": { "type": "string" },
+        "type": { "type": "string", "enum": ["PERSONAL", "FAMILY", "BUSINESS", "CUSTOM"] },
+        "iconKey": { "type": "string" },
+        "openingBalancePoisha": { "type": "integer" },
+        "archived": { "type": "boolean" },
+        "clientCreatedAtMs": { "type": "integer" },
+        "clientUpdatedAtMs": { "type": "integer" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Written via FieldValue.serverTimestamp()." },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Written via FieldValue.serverTimestamp()." }
+      },
+      "required": ["userId", "localId", "name", "type", "iconKey", "openingBalancePoisha", "archived", "clientCreatedAtMs", "clientUpdatedAtMs", "createdAt", "updatedAt"]
+    },
+    "CloudCategory": {
+      "title": "CloudCategory",
+      "description": "Income or expense category scoped to a notebook.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "localId": { "type": "integer" },
+        "notebookId": { "type": "integer" },
+        "nameBn": { "type": "string" },
+        "nameEn": { "type": "string" },
+        "type": { "type": "string", "enum": ["INCOME", "EXPENSE"] },
+        "iconKey": { "type": "string" },
+        "colorHex": { "type": "string" },
+        "defaultCategory": { "type": "boolean" },
+        "active": { "type": "boolean" },
+        "clientUpdatedAtMs": { "type": "integer" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Written via FieldValue.serverTimestamp()." },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Written via FieldValue.serverTimestamp()." }
+      },
+      "required": ["userId", "localId", "notebookId", "nameBn", "nameEn", "type", "iconKey", "colorHex", "defaultCategory", "active", "clientUpdatedAtMs", "createdAt", "updatedAt"]
+    },
+    "CloudShop": {
+      "title": "CloudShop",
+      "description": "Neighborhood shop credit profile.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "localId": { "type": "integer" },
+        "notebookId": { "type": "integer" },
+        "name": { "type": "string" },
+        "ownerName": { "type": "string" },
+        "phone": { "type": "string" },
+        "address": { "type": "string" },
+        "shopCategory": { "type": "string" },
+        "openingBalancePoisha": { "type": "integer" },
+        "notes": { "type": "string" },
+        "archived": { "type": "boolean" },
+        "clientCreatedAtMs": { "type": "integer" },
+        "clientUpdatedAtMs": { "type": "integer" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Written via FieldValue.serverTimestamp()." },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Written via FieldValue.serverTimestamp()." }
+      },
+      "required": ["userId", "localId", "notebookId", "name", "ownerName", "phone", "address", "shopCategory", "openingBalancePoisha", "notes", "archived", "clientCreatedAtMs", "clientUpdatedAtMs", "createdAt", "updatedAt"]
+    },
+    "CloudPersonalLoan": {
+      "title": "CloudPersonalLoan",
+      "description": "Personal lending or borrowing record.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "localId": { "type": "integer" },
+        "notebookId": { "type": "integer" },
+        "direction": { "type": "string", "enum": ["GIVEN", "BORROWED"] },
+        "personName": { "type": "string" },
+        "phone": { "type": "string" },
+        "principalPoisha": { "type": "integer" },
+        "loanDate": { "type": "integer" },
+        "dueDate": { "type": "integer" },
+        "description": { "type": "string" },
+        "settled": { "type": "boolean" },
+        "clientCreatedAtMs": { "type": "integer" },
+        "clientUpdatedAtMs": { "type": "integer" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Written via FieldValue.serverTimestamp()." },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Written via FieldValue.serverTimestamp()." }
+      },
+      "required": ["userId", "localId", "notebookId", "direction", "personName", "phone", "principalPoisha", "loanDate", "description", "settled", "clientCreatedAtMs", "clientUpdatedAtMs", "createdAt", "updatedAt"]
+    },
+    "CloudTransaction": {
+      "title": "CloudTransaction",
+      "description": "Integer-poisha ledger transaction with optional bounded itemized line items.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "localId": { "type": "integer" },
+        "notebookId": { "type": "integer" },
+        "type": {
+          "type": "string",
+          "enum": [
+            "INCOME",
+            "EXPENSE",
+            "SHOP_PURCHASE",
+            "SHOP_DUE_PAYMENT",
+            "LENDING_GIVEN",
+            "LENDING_REPAYMENT",
+            "BORROWING_TAKEN",
+            "BORROWING_REPAYMENT"
+          ]
+        },
+        "totalAmountPoisha": { "type": "integer" },
+        "paidAmountPoisha": { "type": "integer" },
+        "dueAmountPoisha": { "type": "integer" },
+        "categoryId": { "type": "integer" },
+        "shopId": { "type": "integer" },
+        "loanId": { "type": "integer" },
+        "paymentMethod": { "type": "string", "enum": ["CASH", "MOBILE_BANKING", "BANK"] },
+        "note": { "type": "string" },
+        "transactionDate": { "type": "integer" },
+        "deleted": { "type": "boolean" },
+        "items": { "type": "array", "description": "Optional bounded list (<= 50) of native itemized purchase maps." },
+        "clientCreatedAtMs": { "type": "integer" },
+        "clientUpdatedAtMs": { "type": "integer" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Written via FieldValue.serverTimestamp()." },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Written via FieldValue.serverTimestamp()." }
+      },
+      "required": ["userId", "localId", "notebookId", "type", "totalAmountPoisha", "paidAmountPoisha", "dueAmountPoisha", "paymentMethod", "note", "transactionDate", "deleted", "clientCreatedAtMs", "clientUpdatedAtMs", "createdAt", "updatedAt"]
+    },
+    "CloudBudget": {
+      "title": "CloudBudget",
+      "description": "Monthly overall or category spending budget.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "localId": { "type": "integer" },
+        "notebookId": { "type": "integer" },
+        "yearMonth": { "type": "string" },
+        "categoryId": { "type": "integer" },
+        "limitPoisha": { "type": "integer" },
+        "clientUpdatedAtMs": { "type": "integer" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Written via FieldValue.serverTimestamp()." },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Written via FieldValue.serverTimestamp()." }
+      },
+      "required": ["userId", "localId", "notebookId", "yearMonth", "limitPoisha", "clientUpdatedAtMs", "createdAt", "updatedAt"]
+    },
+    "CloudNote": {
+      "title": "CloudNote",
+      "description": "Digital pocket diary note with optional native checklist items.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "localId": { "type": "integer" },
+        "notebookId": { "type": "integer" },
+        "title": { "type": "string" },
+        "content": { "type": "string" },
+        "category": { "type": "string", "enum": ["PERSONAL", "SHOPPING_LIST", "PHONE_ADDRESS", "IMPORTANT"] },
+        "checklistItems": { "type": "array", "description": "Optional bounded list (<= 100) of native checklist item maps." },
+        "contactPhone": { "type": "string" },
+        "contactAddress": { "type": "string" },
+        "pinned": { "type": "boolean" },
+        "clientCreatedAtMs": { "type": "integer" },
+        "clientUpdatedAtMs": { "type": "integer" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Written via FieldValue.serverTimestamp()." },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Written via FieldValue.serverTimestamp()." }
+      },
+      "required": ["userId", "localId", "notebookId", "title", "content", "category", "contactPhone", "contactAddress", "pinned", "clientCreatedAtMs", "clientUpdatedAtMs", "createdAt", "updatedAt"]
+    },
+    "CloudTask": {
+      "title": "CloudTask",
+      "description": "Diary task and reminder record.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "localId": { "type": "integer" },
+        "notebookId": { "type": "integer" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "taskType": { "type": "string", "enum": ["DAILY", "BILL", "LOAN_REPAYMENT", "CUSTOM"] },
+        "dueAt": { "type": "integer" },
+        "reminderAt": { "type": "integer" },
+        "completed": { "type": "boolean" },
+        "linkedLoanId": { "type": "integer" },
+        "clientCreatedAtMs": { "type": "integer" },
+        "clientUpdatedAtMs": { "type": "integer" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Written via FieldValue.serverTimestamp()." },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Written via FieldValue.serverTimestamp()." }
+      },
+      "required": ["userId", "localId", "notebookId", "title", "description", "taskType", "completed", "clientCreatedAtMs", "clientUpdatedAtMs", "createdAt", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Private owner profile and monotonic sync cursor."
+    },
+    "/users/{userId}/notebooks/{notebookId}": {
+      "schema": { "$ref": "#/entities/CloudNotebook" },
+      "description": "User's account books."
+    },
+    "/users/{userId}/categories/{categoryId}": {
+      "schema": { "$ref": "#/entities/CloudCategory" },
+      "description": "User's income and expense categories."
+    },
+    "/users/{userId}/shops/{shopId}": {
+      "schema": { "$ref": "#/entities/CloudShop" },
+      "description": "User's neighborhood shop due profiles."
+    },
+    "/users/{userId}/personal_loans/{loanId}": {
+      "schema": { "$ref": "#/entities/CloudPersonalLoan" },
+      "description": "User's personal lending and borrowing records."
+    },
+    "/users/{userId}/transactions/{transactionId}": {
+      "schema": { "$ref": "#/entities/CloudTransaction" },
+      "description": "User's ledger transactions and itemized purchase lines."
+    },
+    "/users/{userId}/budgets/{budgetId}": {
+      "schema": { "$ref": "#/entities/CloudBudget" },
+      "description": "User's monthly overall and category budgets."
+    },
+    "/users/{userId}/notes/{noteId}": {
+      "schema": { "$ref": "#/entities/CloudNote" },
+      "description": "User's digital pocket diary notes and checklists."
+    },
+    "/users/{userId}/tasks/{taskId}": {
+      "schema": { "$ref": "#/entities/CloudTask" },
+      "description": "User's tasks and reminders."
+    }
+  }
+}

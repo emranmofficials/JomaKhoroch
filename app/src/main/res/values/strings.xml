@@ -1,0 +1,14 @@
+<resources>
+    <string name="app_name">JomaKhoroch</string>
+    <string name="app_name_bn">জমাখরচ</string>
+    <string name="app_tagline_bn">প্রতিদিনের হিসাব, হাতের মুঠোয়।</string>
+    <string name="app_tagline_en">Daily accounts, right in your hand.</string>
+    <string name="notification_channel_name">JomaKhoroch Reminders</string>
+    <string name="notification_channel_desc">Reminders for bills, loan repayments, and daily tasks.</string>
+    <string name="notification_channel_budget_name">Budget Alerts</string>
+    <string name="notification_channel_budget_desc">Alerts when monthly or category expenses reach 80% or exceed your budget.</string>
+    <string name="notification_channel_daily_name">Daily Accounting Check-in</string>
+    <string name="notification_channel_daily_desc">Daily reminder to record your income, expenses, and dues.</string>
+    <string name="notification_channel_updates_name">App Updates</string>
+    <string name="notification_channel_updates_desc">Alerts when a newer version of JomaKhoroch is released.</string>
+</resources>

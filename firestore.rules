@@ -1,0 +1,527 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global default-deny safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Hardened Primitives ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidTimestamp(ts) {
+      return ts is timestamp && ts <= request.time;
+    }
+
+    function isValidOptionalString(data, key, maxLen) {
+      return !(key in data) || data[key] == null || (data[key] is string && data[key].size() <= maxLen);
+    }
+
+    function isValidOptionalInt(data, key) {
+      return !(key in data) || data[key] == null || data[key] is int;
+    }
+
+    function isValidOptionalMapList(data, key, maxLen) {
+      return !(key in data) || data[key] == null || (
+        data[key] is list &&
+        data[key].size() <= maxLen &&
+        (data[key].size() == 0 || data[key][0] is map)
+      );
+    }
+
+    // --- Entity Validation Blueprints ---
+    function isValidUserProfile(data) {
+      return data.userId is string && data.userId == request.auth.uid && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+             data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 80 &&
+             isValidOptionalString(data, 'email', 200) &&
+             data.deviceId is string && data.deviceId.size() >= 1 && data.deviceId.size() <= 128 &&
+             data.syncRevision is int && data.syncRevision >= 0;
+    }
+
+    function isValidNotebook(data) {
+      return data.userId is string && data.userId == request.auth.uid && data.userId.size() <= 128 &&
+             data.localId is int && data.localId > 0 &&
+             data.name is string && data.name.size() >= 1 && data.name.size() <= 100 &&
+             data.type is string && data.type in ['PERSONAL', 'FAMILY', 'BUSINESS', 'CUSTOM'] &&
+             data.iconKey is string && data.iconKey.size() >= 1 && data.iconKey.size() <= 40 &&
+             data.openingBalancePoisha is int && data.openingBalancePoisha >= 0 &&
+             data.archived is bool &&
+             data.clientCreatedAtMs is int && data.clientCreatedAtMs >= 0 &&
+             data.clientUpdatedAtMs is int && data.clientUpdatedAtMs >= 0;
+    }
+
+    function isValidCategory(data) {
+      return data.userId is string && data.userId == request.auth.uid && data.userId.size() <= 128 &&
+             data.localId is int && data.localId > 0 &&
+             data.notebookId is int && data.notebookId > 0 &&
+             data.nameBn is string && data.nameBn.size() >= 1 && data.nameBn.size() <= 80 &&
+             data.nameEn is string && data.nameEn.size() >= 1 && data.nameEn.size() <= 80 &&
+             data.type is string && data.type in ['INCOME', 'EXPENSE'] &&
+             data.iconKey is string && data.iconKey.size() >= 1 && data.iconKey.size() <= 40 &&
+             data.colorHex is string && data.colorHex.size() >= 4 && data.colorHex.size() <= 16 &&
+             data.defaultCategory is bool &&
+             data.active is bool &&
+             data.clientUpdatedAtMs is int && data.clientUpdatedAtMs >= 0;
+    }
+
+    function isValidShop(data) {
+      return data.userId is string && data.userId == request.auth.uid && data.userId.size() <= 128 &&
+             data.localId is int && data.localId > 0 &&
+             data.notebookId is int && data.notebookId > 0 &&
+             data.name is string && data.name.size() >= 1 && data.name.size() <= 120 &&
+             data.ownerName is string && data.ownerName.size() <= 120 &&
+             data.phone is string && data.phone.size() <= 40 &&
+             data.address is string && data.address.size() <= 250 &&
+             data.shopCategory is string && data.shopCategory.size() <= 80 &&
+             data.openingBalancePoisha is int && data.openingBalancePoisha >= 0 &&
+             data.notes is string && data.notes.size() <= 500 &&
+             data.archived is bool &&
+             data.clientCreatedAtMs is int && data.clientCreatedAtMs >= 0 &&
+             data.clientUpdatedAtMs is int && data.clientUpdatedAtMs >= 0;
+    }
+
+    function isValidPersonalLoan(data) {
+      return data.userId is string && data.userId == request.auth.uid && data.userId.size() <= 128 &&
+             data.localId is int && data.localId > 0 &&
+             data.notebookId is int && data.notebookId > 0 &&
+             data.direction is string && data.direction in ['GIVEN', 'BORROWED'] &&
+             data.personName is string && data.personName.size() >= 1 && data.personName.size() <= 120 &&
+             data.phone is string && data.phone.size() <= 40 &&
+             data.principalPoisha is int && data.principalPoisha >= 0 &&
+             data.loanDate is int && data.loanDate >= 0 &&
+             isValidOptionalInt(data, 'dueDate') &&
+             data.description is string && data.description.size() <= 500 &&
+             data.settled is bool &&
+             data.clientCreatedAtMs is int && data.clientCreatedAtMs >= 0 &&
+             data.clientUpdatedAtMs is int && data.clientUpdatedAtMs >= 0;
+    }
+
+    function isValidTransaction(data) {
+      return data.userId is string && data.userId == request.auth.uid && data.userId.size() <= 128 &&
+             data.localId is int && data.localId > 0 &&
+             data.notebookId is int && data.notebookId > 0 &&
+             data.type is string && data.type in [
+               'INCOME',
+               'EXPENSE',
+               'SHOP_PURCHASE',
+               'SHOP_DUE_PAYMENT',
+               'LENDING_GIVEN',
+               'LENDING_REPAYMENT',
+               'BORROWING_TAKEN',
+               'BORROWING_REPAYMENT'
+             ] &&
+             data.totalAmountPoisha is int && data.totalAmountPoisha >= 0 &&
+             data.paidAmountPoisha is int && data.paidAmountPoisha >= 0 &&
+             data.dueAmountPoisha is int && data.dueAmountPoisha >= 0 &&
+             isValidOptionalInt(data, 'categoryId') &&
+             isValidOptionalInt(data, 'shopId') &&
+             isValidOptionalInt(data, 'loanId') &&
+             data.paymentMethod is string && data.paymentMethod in ['CASH', 'MOBILE_BANKING', 'BANK'] &&
+             data.note is string && data.note.size() <= 500 &&
+             data.transactionDate is int && data.transactionDate >= 0 &&
+             data.deleted is bool &&
+             isValidOptionalMapList(data, 'items', 50) &&
+             data.clientCreatedAtMs is int && data.clientCreatedAtMs >= 0 &&
+             data.clientUpdatedAtMs is int && data.clientUpdatedAtMs >= 0;
+    }
+
+    function isValidBudget(data) {
+      return data.userId is string && data.userId == request.auth.uid && data.userId.size() <= 128 &&
+             data.localId is int && data.localId > 0 &&
+             data.notebookId is int && data.notebookId > 0 &&
+             data.yearMonth is string && data.yearMonth.size() == 7 && data.yearMonth.matches('^[0-9]{4}-[0-9]{2}$') &&
+             isValidOptionalInt(data, 'categoryId') &&
+             data.limitPoisha is int && data.limitPoisha >= 0 &&
+             data.clientUpdatedAtMs is int && data.clientUpdatedAtMs >= 0;
+    }
+
+    function isValidNote(data) {
+      return data.userId is string && data.userId == request.auth.uid && data.userId.size() <= 128 &&
+             data.localId is int && data.localId > 0 &&
+             data.notebookId is int && data.notebookId > 0 &&
+             data.title is string && data.title.size() <= 200 &&
+             data.content is string && data.content.size() <= 5000 &&
+             data.category is string && data.category in ['PERSONAL', 'SHOPPING_LIST', 'PHONE_ADDRESS', 'IMPORTANT'] &&
+             isValidOptionalMapList(data, 'checklistItems', 100) &&
+             data.contactPhone is string && data.contactPhone.size() <= 40 &&
+             data.contactAddress is string && data.contactAddress.size() <= 300 &&
+             data.pinned is bool &&
+             data.clientCreatedAtMs is int && data.clientCreatedAtMs >= 0 &&
+             data.clientUpdatedAtMs is int && data.clientUpdatedAtMs >= 0;
+    }
+
+    function isValidTask(data) {
+      return data.userId is string && data.userId == request.auth.uid && data.userId.size() <= 128 &&
+             data.localId is int && data.localId > 0 &&
+             data.notebookId is int && data.notebookId > 0 &&
+             data.title is string && data.title.size() >= 1 && data.title.size() <= 200 &&
+             data.description is string && data.description.size() <= 500 &&
+             data.taskType is string && data.taskType in ['DAILY', 'BILL', 'LOAN_REPAYMENT', 'CUSTOM'] &&
+             isValidOptionalInt(data, 'dueAt') &&
+             isValidOptionalInt(data, 'reminderAt') &&
+             data.completed is bool &&
+             isValidOptionalInt(data, 'linkedLoanId') &&
+             data.clientCreatedAtMs is int && data.clientCreatedAtMs >= 0 &&
+             data.clientUpdatedAtMs is int && data.clientUpdatedAtMs >= 0;
+    }
+
+    // --- User Profile & Private Sync Collections ---
+    match /users/{userId} {
+      allow get: if isOwner(userId) && isValidId(userId);
+      allow list: if false;
+
+      allow create: if isOwner(userId) &&
+                       isValidId(userId) &&
+                       isValidUserProfile(incoming()) &&
+                       incoming().keys().hasAll(['userId', 'displayName', 'deviceId', 'syncRevision', 'createdAt', 'updatedAt']) &&
+                       incoming().keys().hasOnly(['userId', 'displayName', 'email', 'deviceId', 'syncRevision', 'createdAt', 'updatedAt']) &&
+                       isValidTimestamp(incoming().createdAt) &&
+                       isValidTimestamp(incoming().updatedAt);
+
+      allow update: if isOwner(userId) &&
+                       isValidId(userId) &&
+                       isValidUserProfile(incoming()) &&
+                       incoming().userId == existing().userId &&
+                       incoming().createdAt == existing().createdAt &&
+                       isValidTimestamp(incoming().updatedAt) &&
+                       (
+                         incoming().diff(existing()).affectedKeys().hasOnly([
+                           'displayName', 'email', 'deviceId', 'syncRevision', 'updatedAt'
+                         ])
+                       );
+
+      allow delete: if isOwner(userId) && isValidId(userId);
+
+      // 1. Account Books
+      match /notebooks/{notebookId} {
+        allow get: if isOwner(userId) && isValidId(notebookId);
+        allow list: if isOwner(userId);
+
+        allow create: if isOwner(userId) &&
+                         isValidId(notebookId) &&
+                         isValidNotebook(incoming()) &&
+                         incoming().keys().hasAll([
+                           'userId', 'localId', 'name', 'type', 'iconKey',
+                           'openingBalancePoisha', 'archived', 'clientCreatedAtMs', 'clientUpdatedAtMs',
+                           'createdAt', 'updatedAt'
+                         ]) &&
+                         incoming().keys().hasOnly([
+                           'userId', 'localId', 'name', 'type', 'iconKey',
+                           'openingBalancePoisha', 'archived', 'clientCreatedAtMs', 'clientUpdatedAtMs',
+                           'createdAt', 'updatedAt'
+                         ]) &&
+                         isValidTimestamp(incoming().createdAt) &&
+                         isValidTimestamp(incoming().updatedAt);
+
+        allow update: if isOwner(userId) &&
+                         isValidId(notebookId) &&
+                         isValidNotebook(incoming()) &&
+                         incoming().userId == existing().userId &&
+                         incoming().localId == existing().localId &&
+                         incoming().createdAt == existing().createdAt &&
+                         isValidTimestamp(incoming().updatedAt) &&
+                         (
+                           incoming().diff(existing()).affectedKeys().hasOnly([
+                             'name', 'type', 'iconKey', 'openingBalancePoisha',
+                             'archived', 'clientCreatedAtMs', 'clientUpdatedAtMs', 'updatedAt'
+                           ])
+                         );
+
+        allow delete: if isOwner(userId) && isValidId(notebookId);
+      }
+
+      // 2. Categories
+      match /categories/{categoryId} {
+        allow get: if isOwner(userId) && isValidId(categoryId);
+        allow list: if isOwner(userId);
+
+        allow create: if isOwner(userId) &&
+                         isValidId(categoryId) &&
+                         isValidCategory(incoming()) &&
+                         incoming().keys().hasAll([
+                           'userId', 'localId', 'notebookId', 'nameBn', 'nameEn', 'type',
+                           'iconKey', 'colorHex', 'defaultCategory', 'active',
+                           'clientUpdatedAtMs', 'createdAt', 'updatedAt'
+                         ]) &&
+                         incoming().keys().hasOnly([
+                           'userId', 'localId', 'notebookId', 'nameBn', 'nameEn', 'type',
+                           'iconKey', 'colorHex', 'defaultCategory', 'active',
+                           'clientUpdatedAtMs', 'createdAt', 'updatedAt'
+                         ]) &&
+                         isValidTimestamp(incoming().createdAt) &&
+                         isValidTimestamp(incoming().updatedAt);
+
+        allow update: if isOwner(userId) &&
+                         isValidId(categoryId) &&
+                         isValidCategory(incoming()) &&
+                         incoming().userId == existing().userId &&
+                         incoming().localId == existing().localId &&
+                         incoming().createdAt == existing().createdAt &&
+                         isValidTimestamp(incoming().updatedAt) &&
+                         (
+                           incoming().diff(existing()).affectedKeys().hasOnly([
+                             'notebookId', 'nameBn', 'nameEn', 'type', 'iconKey', 'colorHex',
+                             'defaultCategory', 'active', 'clientUpdatedAtMs', 'updatedAt'
+                           ])
+                         );
+
+        allow delete: if isOwner(userId) && isValidId(categoryId);
+      }
+
+      // 3. Shops
+      match /shops/{shopId} {
+        allow get: if isOwner(userId) && isValidId(shopId);
+        allow list: if isOwner(userId);
+
+        allow create: if isOwner(userId) &&
+                         isValidId(shopId) &&
+                         isValidShop(incoming()) &&
+                         incoming().keys().hasAll([
+                           'userId', 'localId', 'notebookId', 'name', 'ownerName', 'phone',
+                           'address', 'shopCategory', 'openingBalancePoisha', 'notes', 'archived',
+                           'clientCreatedAtMs', 'clientUpdatedAtMs', 'createdAt', 'updatedAt'
+                         ]) &&
+                         incoming().keys().hasOnly([
+                           'userId', 'localId', 'notebookId', 'name', 'ownerName', 'phone',
+                           'address', 'shopCategory', 'openingBalancePoisha', 'notes', 'archived',
+                           'clientCreatedAtMs', 'clientUpdatedAtMs', 'createdAt', 'updatedAt'
+                         ]) &&
+                         isValidTimestamp(incoming().createdAt) &&
+                         isValidTimestamp(incoming().updatedAt);
+
+        allow update: if isOwner(userId) &&
+                         isValidId(shopId) &&
+                         isValidShop(incoming()) &&
+                         incoming().userId == existing().userId &&
+                         incoming().localId == existing().localId &&
+                         incoming().createdAt == existing().createdAt &&
+                         isValidTimestamp(incoming().updatedAt) &&
+                         (
+                           incoming().diff(existing()).affectedKeys().hasOnly([
+                             'notebookId', 'name', 'ownerName', 'phone', 'address', 'shopCategory',
+                             'openingBalancePoisha', 'notes', 'archived',
+                             'clientCreatedAtMs', 'clientUpdatedAtMs', 'updatedAt'
+                           ])
+                         );
+
+        allow delete: if isOwner(userId) && isValidId(shopId);
+      }
+
+      // 4. Personal Loans
+      match /personal_loans/{loanId} {
+        allow get: if isOwner(userId) && isValidId(loanId);
+        allow list: if isOwner(userId);
+
+        allow create: if isOwner(userId) &&
+                         isValidId(loanId) &&
+                         isValidPersonalLoan(incoming()) &&
+                         incoming().keys().hasAll([
+                           'userId', 'localId', 'notebookId', 'direction', 'personName', 'phone',
+                           'principalPoisha', 'loanDate', 'description', 'settled',
+                           'clientCreatedAtMs', 'clientUpdatedAtMs', 'createdAt', 'updatedAt'
+                         ]) &&
+                         incoming().keys().hasOnly([
+                           'userId', 'localId', 'notebookId', 'direction', 'personName', 'phone',
+                           'principalPoisha', 'loanDate', 'dueDate', 'description', 'settled',
+                           'clientCreatedAtMs', 'clientUpdatedAtMs', 'createdAt', 'updatedAt'
+                         ]) &&
+                         isValidTimestamp(incoming().createdAt) &&
+                         isValidTimestamp(incoming().updatedAt);
+
+        allow update: if isOwner(userId) &&
+                         isValidId(loanId) &&
+                         isValidPersonalLoan(incoming()) &&
+                         incoming().userId == existing().userId &&
+                         incoming().localId == existing().localId &&
+                         incoming().createdAt == existing().createdAt &&
+                         isValidTimestamp(incoming().updatedAt) &&
+                         (
+                           incoming().diff(existing()).affectedKeys().hasOnly([
+                             'notebookId', 'direction', 'personName', 'phone', 'principalPoisha',
+                             'loanDate', 'dueDate', 'description', 'settled',
+                             'clientCreatedAtMs', 'clientUpdatedAtMs', 'updatedAt'
+                           ])
+                         );
+
+        allow delete: if isOwner(userId) && isValidId(loanId);
+      }
+
+      // 5. Ledger Transactions
+      match /transactions/{transactionId} {
+        allow get: if isOwner(userId) && isValidId(transactionId);
+        allow list: if isOwner(userId);
+
+        allow create: if isOwner(userId) &&
+                         isValidId(transactionId) &&
+                         isValidTransaction(incoming()) &&
+                         incoming().keys().hasAll([
+                           'userId', 'localId', 'notebookId', 'type',
+                           'totalAmountPoisha', 'paidAmountPoisha', 'dueAmountPoisha',
+                           'paymentMethod', 'note', 'transactionDate', 'deleted',
+                           'clientCreatedAtMs', 'clientUpdatedAtMs', 'createdAt', 'updatedAt'
+                         ]) &&
+                         incoming().keys().hasOnly([
+                           'userId', 'localId', 'notebookId', 'type',
+                           'totalAmountPoisha', 'paidAmountPoisha', 'dueAmountPoisha',
+                           'categoryId', 'shopId', 'loanId', 'paymentMethod', 'note',
+                           'transactionDate', 'deleted', 'items',
+                           'clientCreatedAtMs', 'clientUpdatedAtMs', 'createdAt', 'updatedAt'
+                         ]) &&
+                         isValidTimestamp(incoming().createdAt) &&
+                         isValidTimestamp(incoming().updatedAt);
+
+        allow update: if isOwner(userId) &&
+                         isValidId(transactionId) &&
+                         isValidTransaction(incoming()) &&
+                         incoming().userId == existing().userId &&
+                         incoming().localId == existing().localId &&
+                         incoming().createdAt == existing().createdAt &&
+                         isValidTimestamp(incoming().updatedAt) &&
+                         (
+                           incoming().diff(existing()).affectedKeys().hasOnly([
+                             'notebookId', 'type', 'totalAmountPoisha', 'paidAmountPoisha',
+                             'dueAmountPoisha', 'categoryId', 'shopId', 'loanId',
+                             'paymentMethod', 'note', 'transactionDate', 'deleted', 'items',
+                             'clientCreatedAtMs', 'clientUpdatedAtMs', 'updatedAt'
+                           ])
+                         );
+
+        allow delete: if isOwner(userId) && isValidId(transactionId);
+      }
+
+      // 6. Monthly Budgets
+      match /budgets/{budgetId} {
+        allow get: if isOwner(userId) && isValidId(budgetId);
+        allow list: if isOwner(userId);
+
+        allow create: if isOwner(userId) &&
+                         isValidId(budgetId) &&
+                         isValidBudget(incoming()) &&
+                         incoming().keys().hasAll([
+                           'userId', 'localId', 'notebookId', 'yearMonth',
+                           'limitPoisha', 'clientUpdatedAtMs', 'createdAt', 'updatedAt'
+                         ]) &&
+                         incoming().keys().hasOnly([
+                           'userId', 'localId', 'notebookId', 'yearMonth', 'categoryId',
+                           'limitPoisha', 'clientUpdatedAtMs', 'createdAt', 'updatedAt'
+                         ]) &&
+                         isValidTimestamp(incoming().createdAt) &&
+                         isValidTimestamp(incoming().updatedAt);
+
+        allow update: if isOwner(userId) &&
+                         isValidId(budgetId) &&
+                         isValidBudget(incoming()) &&
+                         incoming().userId == existing().userId &&
+                         incoming().localId == existing().localId &&
+                         incoming().createdAt == existing().createdAt &&
+                         isValidTimestamp(incoming().updatedAt) &&
+                         (
+                           incoming().diff(existing()).affectedKeys().hasOnly([
+                             'notebookId', 'yearMonth', 'categoryId', 'limitPoisha',
+                             'clientUpdatedAtMs', 'updatedAt'
+                           ])
+                         );
+
+        allow delete: if isOwner(userId) && isValidId(budgetId);
+      }
+
+      // 7. Pocket Diary Notes
+      match /notes/{noteId} {
+        allow get: if isOwner(userId) && isValidId(noteId);
+        allow list: if isOwner(userId);
+
+        allow create: if isOwner(userId) &&
+                         isValidId(noteId) &&
+                         isValidNote(incoming()) &&
+                         incoming().keys().hasAll([
+                           'userId', 'localId', 'notebookId', 'title', 'content', 'category',
+                           'contactPhone', 'contactAddress', 'pinned',
+                           'clientCreatedAtMs', 'clientUpdatedAtMs', 'createdAt', 'updatedAt'
+                         ]) &&
+                         incoming().keys().hasOnly([
+                           'userId', 'localId', 'notebookId', 'title', 'content', 'category',
+                           'checklistItems', 'contactPhone', 'contactAddress', 'pinned',
+                           'clientCreatedAtMs', 'clientUpdatedAtMs', 'createdAt', 'updatedAt'
+                         ]) &&
+                         isValidTimestamp(incoming().createdAt) &&
+                         isValidTimestamp(incoming().updatedAt);
+
+        allow update: if isOwner(userId) &&
+                         isValidId(noteId) &&
+                         isValidNote(incoming()) &&
+                         incoming().userId == existing().userId &&
+                         incoming().localId == existing().localId &&
+                         incoming().createdAt == existing().createdAt &&
+                         isValidTimestamp(incoming().updatedAt) &&
+                         (
+                           incoming().diff(existing()).affectedKeys().hasOnly([
+                             'notebookId', 'title', 'content', 'category', 'checklistItems',
+                             'contactPhone', 'contactAddress', 'pinned',
+                             'clientCreatedAtMs', 'clientUpdatedAtMs', 'updatedAt'
+                           ])
+                         );
+
+        allow delete: if isOwner(userId) && isValidId(noteId);
+      }
+
+      // 8. Tasks & Reminders
+      match /tasks/{taskId} {
+        allow get: if isOwner(userId) && isValidId(taskId);
+        allow list: if isOwner(userId);
+
+        allow create: if isOwner(userId) &&
+                         isValidId(taskId) &&
+                         isValidTask(incoming()) &&
+                         incoming().keys().hasAll([
+                           'userId', 'localId', 'notebookId', 'title', 'description',
+                           'taskType', 'completed',
+                           'clientCreatedAtMs', 'clientUpdatedAtMs', 'createdAt', 'updatedAt'
+                         ]) &&
+                         incoming().keys().hasOnly([
+                           'userId', 'localId', 'notebookId', 'title', 'description',
+                           'taskType', 'dueAt', 'reminderAt', 'completed', 'linkedLoanId',
+                           'clientCreatedAtMs', 'clientUpdatedAtMs', 'createdAt', 'updatedAt'
+                         ]) &&
+                         isValidTimestamp(incoming().createdAt) &&
+                         isValidTimestamp(incoming().updatedAt);
+
+        allow update: if isOwner(userId) &&
+                         isValidId(taskId) &&
+                         isValidTask(incoming()) &&
+                         incoming().userId == existing().userId &&
+                         incoming().localId == existing().localId &&
+                         incoming().createdAt == existing().createdAt &&
+                         isValidTimestamp(incoming().updatedAt) &&
+                         (
+                           incoming().diff(existing()).affectedKeys().hasOnly([
+                             'notebookId', 'title', 'description', 'taskType', 'dueAt',
+                             'reminderAt', 'completed', 'linkedLoanId',
+                             'clientCreatedAtMs', 'clientUpdatedAtMs', 'updatedAt'
+                           ])
+                         );
+
+        allow delete: if isOwner(userId) && isValidId(taskId);
+      }
+    }
+  }
+}

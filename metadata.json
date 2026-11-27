@@ -1,0 +1,6 @@
+{
+  "name": "JomaKhoroch",
+  "description": "100% offline personal finance, shop due ledger, lending tracker, budgets, reports, and digital pocket diary (জমাখরচ).",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
